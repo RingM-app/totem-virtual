@@ -1,9 +1,10 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import { Login } from "./components/Login";
 import { useLiveKit } from "./hooks/useLiveKit";
 
-function App() {
+function Viewer({ jwt, onLogout }) {
   const videoRef = useRef(null);
-  const { status, connect, disconnect } = useLiveKit(videoRef);
+  const { status, connect, disconnect } = useLiveKit(videoRef, jwt);
 
   const isConnected = status === "connected";
   const isConnecting = status === "connecting";
@@ -11,13 +12,19 @@ function App() {
   return (
     <div className="min-h-screen text-white">
       {/* Header */}
-      <div className="py-6 text-center">
+      <div className="py-6 px-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold opacity-90">RingM — Portero</h1>
+        <button
+          onClick={onLogout}
+          className="text-sm text-white/50 hover:text-white/80 transition"
+        >
+          Cerrar sesión
+        </button>
       </div>
 
       {/* Contenedor */}
       <div className="flex justify-center px-4">
-        <div className="w-full max-w-5xl bg-white text-slate-900 rounded-2xl shadow-lg p-6 relative">
+        <div className="w-full max-w-5xl bg-white text-slate-900 rounded-2xl shadow-lg p-6">
           <h2 className="text-xl font-semibold mb-4">Entrada 1</h2>
 
           {/* Video */}
@@ -29,8 +36,6 @@ function App() {
               muted
               className="w-full h-full object-cover"
             />
-
-            {/* Overlay cuando no hay video */}
             {!isConnected && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-white/40 text-sm">
@@ -40,9 +45,9 @@ function App() {
             )}
           </div>
 
-          {/* Botón conectar */}
-          {!isConnected && !isConnecting && (
-            <div className="mt-6 flex justify-center">
+          {/* Botones */}
+          <div className="mt-6 flex justify-center">
+            {!isConnected && !isConnecting && (
               <button
                 onClick={connect}
                 style={{ backgroundColor: "#505cfc" }}
@@ -50,12 +55,8 @@ function App() {
               >
                 Ver cámara
               </button>
-            </div>
-          )}
-
-          {/* Estado conectando */}
-          {isConnecting && (
-            <div className="mt-6 flex justify-center">
+            )}
+            {isConnecting && (
               <button
                 disabled
                 style={{ backgroundColor: "#505cfc" }}
@@ -63,20 +64,16 @@ function App() {
               >
                 Conectando…
               </button>
-            </div>
-          )}
-
-          {/* Botón desconectar */}
-          {isConnected && (
-            <div className="mt-6 flex justify-center">
+            )}
+            {isConnected && (
               <button
                 onClick={disconnect}
                 className="px-6 py-3 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition shadow"
               >
                 Desconectar
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -90,6 +87,16 @@ function App() {
       </div>
     </div>
   );
+}
+
+function App() {
+  const [jwt, setJwt] = useState(null);
+
+  if (!jwt) {
+    return <Login onLogin={setJwt} />;
+  }
+
+  return <Viewer jwt={jwt} onLogout={() => setJwt(null)} />;
 }
 
 export default App;

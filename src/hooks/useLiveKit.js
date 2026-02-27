@@ -5,7 +5,7 @@ const BACKEND_URL = "http://18.190.159.57:3000";
 const LIVEKIT_URL = "ws://18.190.159.57:7880";
 const ROOM_NAME = "sala_1";
 
-export function useLiveKit(videoRef) {
+export function useLiveKit(videoRef, jwt) {
   const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
   const roomRef = useRef(null);
 
@@ -14,16 +14,7 @@ export function useLiveKit(videoRef) {
     setStatus("connecting");
 
     try {
-      // 1. Login
-      const loginRes = await fetch(`${BACKEND_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "test", password: "1234" }),
-      });
-      if (!loginRes.ok) throw new Error("Login fallido");
-      const { token: jwt } = await loginRes.json();
-
-      // 2. Obtener token LiveKit
+      // Obtener token LiveKit con el JWT ya disponible
       const tokenRes = await fetch(`${BACKEND_URL}/api/livekit/token`, {
         method: "POST",
         headers: {
@@ -32,10 +23,10 @@ export function useLiveKit(videoRef) {
         },
         body: JSON.stringify({ room_name: ROOM_NAME }),
       });
-      if (!tokenRes.ok) throw new Error("No se pudo obtener token");
+      if (!tokenRes.ok) throw new Error("No se pudo obtener token LiveKit");
       const { token } = await tokenRes.json();
 
-      // 3. Conectar a la sala
+      // Conectar a la sala
       const room = new Room();
       roomRef.current = room;
 
@@ -46,33 +37,34 @@ export function useLiveKit(videoRef) {
         }
       });
 
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach();
+      });
+
       room.on(RoomEvent.Disconnected, () => {
         setStatus("idle");
         roomRef.current = null;
       });
 
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        track.detach();
-      });
-
       await room.connect(LIVEKIT_URL, token);
-      setStatus("connecting"); // esperando el track de video
 
-      // Si ya hay participantes con tracks publicados al conectar
+      // Tracks ya publicados al conectar
       room.participants.forEach((participant) => {
-        participant.tracks.forEach((publication) => {
-          if (publication.track?.kind === "video" && videoRef.current) {
-            publication.track.attach(videoRef.current);
+        participant.tracks.forEach((pub) => {
+          if (pub.track?.kind === "video" && videoRef.current) {
+            pub.track.attach(videoRef.current);
             setStatus("connected");
           }
         });
       });
+
+      if (status !== "connected") setStatus("connecting");
     } catch (err) {
       console.error("LiveKit error:", err);
       setStatus("error");
       roomRef.current = null;
     }
-  }, [videoRef]);
+  }, [videoRef, jwt]);
 
   const disconnect = useCallback(() => {
     if (roomRef.current) {
