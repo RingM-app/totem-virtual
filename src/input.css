@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos opcionales adicionales */
+.video-fill {
+  @apply w-full h-full object-cover;
+}
+
+.local-video-floating {
+  @apply absolute z-10 right-4 bottom-4 w-28 h-40 rounded-xl overflow-hidden shadow-lg;
+}
+
+.controls-fixed {
+  @apply fixed bottom-0 left-0 right-0 flex justify-center py-3 z-50;
+}
+
+html, body, #root {
+  height: 100%;
+  background: #090836; /* color base de la app */
+}
+
+/* Texto blanco por defecto y fondo oscuro global */
+body { @apply text-white bg-[#090836]; }

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RingM — Portero</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background-color: #090836;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: white;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Fondo decorativo */
+    .bg-glow {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .bg-glow::after {
+      content: '';
+      position: absolute;
+      top: -80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1200px;
+      height: 1200px;
+      border-radius: 50%;
+      background: #4E58FD;
+      opacity: 0.2;
+      filter: blur(80px);
+    }
+
+    /* Header */
+    header {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 24px 16px;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    /* Contenedor principal */
+    main {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      padding: 0 16px 40px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 900px;
+      background: white;
+      color: #1e293b;
+      border-radius: 16px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.3);
+      padding: 24px;
+    }
+
+    .card h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    /* Video wrapper */
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: black;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .video-wrapper video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .video-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .video-overlay span {
+      color: rgba(255,255,255,0.35);
+      font-size: 0.875rem;
+    }
+
+    /* Status bar */
+    .status-bar {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: #64748b;
+      min-height: 18px;
+    }
+
+    /* Botones */
+    .btn-row {
+      margin-top: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      color: white;
+    }
+    button:hover:not(:disabled) { opacity: 0.88; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #btnConnect  { background-color: #505cfc; }
+    #btnDisconnect { background-color: #ef4444; display: none; }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <header>
+    <h1>RingM — Portero</h1>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Entrada 1</h2>
+
+      <div class="video-wrapper">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="video-overlay" id="overlay">
+          <span id="overlayText">Sin señal</span>
+        </div>
+      </div>
+
+      <div class="status-bar" id="status"></div>
+
+      <div class="btn-row">
+        <button id="btnConnect">Ver cámara</button>
+        <button id="btnDisconnect">Desconectar</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/livekit-client@1.15.3/dist/livekit-client.umd.js"></script>
+  <script>
+    const BACKEND_URL = "http://18.190.159.57:3000";
+    const LIVEKIT_URL  = "ws://18.190.159.57:7880";
+    const ROOM_NAME    = "sala_1";
+
+    const videoEl      = document.getElementById("video");
+    const statusEl     = document.getElementById("status");
+    const overlay      = document.getElementById("overlay");
+    const overlayText  = document.getElementById("overlayText");
+    const btnConnect   = document.getElementById("btnConnect");
+    const btnDisconnect = document.getElementById("btnDisconnect");
+
+    let currentRoom = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function showOverlay(text) {
+      overlayText.textContent = text;
+      overlay.style.display = "flex";
+    }
+
+    function hideOverlay() {
+      overlay.style.display = "none";
+    }
+
+    async function connect() {
+      btnConnect.disabled = true;
+      showOverlay("Conectando…");
+      setStatus("Obteniendo token…");
+
+      try {
+        // 1. Login
+        const loginRes = await fetch(`${BACKEND_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "test", password: "1234" })
+        });
+        if (!loginRes.ok) throw new Error("Login fallido");
+        const { token: jwt } = await loginRes.json();
+
+        // 2. Token LiveKit
+        const tokenRes = await fetch(`${BACKEND_URL}/api/livekit/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${jwt}`
+          },
+          body: JSON.stringify({ room_name: ROOM_NAME })
+        });
+        if (!tokenRes.ok) throw new Error("No se pudo obtener token LiveKit");
+        const { token } = await tokenRes.json();
+
+        // 3. Conectar
+        const { Room, RoomEvent } = LivekitClient;
+        const room = new Room();
+        currentRoom = room;
+
+        setStatus("Conectando a la sala…");
+
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === "video") {
+            track.attach(videoEl);
+            hideOverlay();
+            setStatus("En vivo");
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach();
+          showOverlay("Sin señal");
+          setStatus("Track desconectado");
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          showOverlay("Sin señal");
+          setStatus("");
+          btnConnect.style.display = "inline-block";
+          btnConnect.disabled = false;
+          btnDisconnect.style.display = "none";
+          currentRoom = null;
+        });
+
+        await room.connect(LIVEKIT_URL, token);
+        setStatus("Esperando video…");
+        showOverlay("Esperando video…");
+
+        // Tracks ya publicados al momento de conectar
+        room.participants.forEach((participant) => {
+          participant.tracks.forEach((pub) => {
+            if (pub.track?.kind === "video") {
+              pub.track.attach(videoEl);
+              hideOverlay();
+              setStatus("En vivo");
+            }
+          });
+        });
+
+        btnConnect.style.display = "none";
+        btnDisconnect.style.display = "inline-block";
+
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: " + err.message);
+        showOverlay("Sin señal");
+        btnConnect.disabled = false;
+        currentRoom = null;
+      }
+    }
+
+    function disconnect() {
+      if (currentRoom) {
+        currentRoom.disconnect();
+        currentRoom = null;
+      }
+      videoEl.srcObject = null;
+      showOverlay("Sin señal");
+      setStatus("");
+      btnConnect.style.display = "inline-block";
+      btnConnect.disabled = false;
+      btnDisconnect.style.display = "none";
+    }
+
+    btnConnect.addEventListener("click", connect);
+    btnDisconnect.addEventListener("click", disconnect);
+  </script>
+</body>
+</html>
