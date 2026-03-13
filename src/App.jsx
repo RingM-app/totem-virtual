@@ -25,10 +25,43 @@ function Background() {
   );
 }
 
+function FullscreenModal({ camera, jwt, onClose }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl px-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-white font-semibold text-lg">{camera.name}</h2>
+            {camera.location && <p className="text-white/40 text-sm">{camera.location}</p>}
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white text-sm">
+            ✕ Cerrar (Esc)
+          </button>
+        </div>
+        <CameraCard camera={camera} jwt={jwt} autoConnect={true} />
+      </div>
+    </div>
+  );
+}
+
 function Viewer({ jwt, onLogout }) {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedCamera, setExpandedCamera] = useState(null);
+  const [connectAll, setConnectAll] = useState(true);
 
   useEffect(() => {
     async function fetchCameras() {
@@ -55,12 +88,22 @@ function Viewer({ jwt, onLogout }) {
       {/* Header */}
       <div className="py-6 px-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold opacity-90">RingM — Portero</h1>
-        <button
-          onClick={onLogout}
-          className="text-sm text-white/50 hover:text-white/80 transition"
-        >
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-4">
+          {cameras.length > 1 && (
+            <button
+              onClick={() => setConnectAll((v) => !v)}
+              className="text-sm text-white/60 hover:text-white transition border border-white/20 px-3 py-1.5 rounded-lg"
+            >
+              {connectAll ? "Desconectar todas" : "Conectar todas"}
+            </button>
+          )}
+          <button
+            onClick={onLogout}
+            className="text-sm text-white/50 hover:text-white/80 transition"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </div>
 
       {/* Contenido */}
@@ -68,17 +111,14 @@ function Viewer({ jwt, onLogout }) {
         {loading && (
           <p className="text-white/50 text-center mt-20">Cargando cámaras…</p>
         )}
-
         {!loading && error && (
           <p className="text-red-400 text-center mt-20">{error}</p>
         )}
-
         {!loading && !error && cameras.length === 0 && (
           <p className="text-white/50 text-center mt-20">
             No tienes cámaras asignadas.
           </p>
         )}
-
         {!loading && !error && cameras.length > 0 && (
           <div
             className={`grid gap-6 ${
@@ -90,11 +130,26 @@ function Viewer({ jwt, onLogout }) {
             }`}
           >
             {cameras.map((camera) => (
-              <CameraCard key={camera.id} camera={camera} jwt={jwt} />
+              <CameraCard
+                key={`${camera.id}-${connectAll}`}
+                camera={camera}
+                jwt={jwt}
+                autoConnect={connectAll}
+                onExpand={() => setExpandedCamera(camera)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* Modal fullscreen */}
+      {expandedCamera && (
+        <FullscreenModal
+          camera={expandedCamera}
+          jwt={jwt}
+          onClose={() => setExpandedCamera(null)}
+        />
+      )}
     </div>
   );
 }
