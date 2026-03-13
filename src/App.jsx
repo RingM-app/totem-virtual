@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Login } from "./components/Login";
 import { CameraCard } from "./components/CameraCard";
+import { AdminPanel } from "./components/AdminPanel";
+
+function parseJwt(token) {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return {};
+  }
+}
 
 const BACKEND_URL = "http://18.190.159.57:3000";
 
@@ -98,6 +107,17 @@ function App() {
       <>
         <Background />
         <Login onLogin={setJwt} />
+      </>
+    );
+  }
+
+  const { role } = parseJwt(jwt);
+
+  if (role === "admin") {
+    return (
+      <>
+        <Background />
+        <AdminPanel jwt={jwt} onLogout={() => setJwt(null)} />
       </>
     );
   }
