@@ -1,70 +1,90 @@
-# Getting Started with Create React App
+# Totem Virtual — RingM
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend web del sistema de monitoreo de porterías. Permite a guardias y administradores ver en tiempo real las cámaras de cada portería del condominio.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Stack
 
-### `npm start`
+| Componente | Tecnología |
+|---|---|
+| Framework | React 19 |
+| Estilos | Tailwind CSS |
+| Video | LiveKit Client SDK |
+| Auth | JWT (decodificado en cliente) |
+| Backend | Node.js + Express (`totem-backend` en EC2) |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Roles
 
-### `npm test`
+| Rol | Acceso |
+|---|---|
+| `guardia` | Monitor con sus cámaras asignadas |
+| `admin` | Monitor con todas las cámaras + panel de gestión |
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## Funcionalidades
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- Login con usuario y contraseña
+- Auto-conexión a todas las cámaras asignadas al entrar
+- Grid adaptable (1, 2 o 3+ cámaras)
+- Click en cámara → fullscreen (cerrar con Esc)
+- Botón "Conectar todas / Desconectar todas"
+- Panel admin con tabs: Usuarios, Cámaras, Asignaciones
+- Admin puede alternar entre monitor y panel de gestión
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Correr en desarrollo
 
-### `npm run eject`
+```bash
+npm install
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+La app corre en `http://localhost:3000`. El backend está en `http://18.190.159.57:3000` (EC2 totem).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Build producción
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```bash
+npm run build
+```
 
-## Learn More
+Genera la carpeta `/build` lista para deploy.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Variables de entorno
 
-### Code Splitting
+No requiere `.env` — la URL del backend está hardcodeada en `src/hooks/useLiveKit.js` y `src/components/`.
+Cuando se tenga dominio propio, centralizar en `.env`:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```env
+REACT_APP_BACKEND_URL=https://totem.ringm.cl
+REACT_APP_LIVEKIT_URL=wss://totem.ringm.cl:7880
+```
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Estructura
 
-### Making a Progressive Web App
+```
+src/
+├── App.jsx                  # Router principal, modal fullscreen
+├── components/
+│   ├── Login.jsx            # Pantalla de login
+│   ├── CameraCard.jsx       # Card de cámara con player LiveKit
+│   └── AdminPanel.jsx       # Panel admin (Usuarios / Cámaras / Asignaciones)
+└── hooks/
+    └── useLiveKit.js        # Conexión LiveKit por sala
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+---
 
-### Advanced Configuration
+## Documentación completa
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Ver `docs/totem.md` en el repositorio principal para arquitectura, backend, configuración de Raspberry Pi y TODOs.
