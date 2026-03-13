@@ -56,7 +56,7 @@ function FullscreenModal({ camera, jwt, onClose }) {
   );
 }
 
-function Viewer({ jwt, onLogout }) {
+function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -95,6 +95,15 @@ function Viewer({ jwt, onLogout }) {
               className="text-sm text-white/60 hover:text-white transition border border-white/20 px-3 py-1.5 rounded-lg"
             >
               {connectAll ? "Desconectar todas" : "Conectar todas"}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={onSwitchToAdmin}
+              style={{ backgroundColor: "#505cfc" }}
+              className="text-sm text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
+            >
+              Panel admin
             </button>
           )}
           <button
@@ -167,12 +176,26 @@ function App() {
   }
 
   const { role } = parseJwt(jwt);
+  const [adminView, setAdminView] = useState("monitor"); // "monitor" | "admin"
 
   if (role === "admin") {
     return (
       <>
         <Background />
-        <AdminPanel jwt={jwt} onLogout={() => setJwt(null)} />
+        {adminView === "admin" ? (
+          <AdminPanel
+            jwt={jwt}
+            onLogout={() => setJwt(null)}
+            onSwitchToMonitor={() => setAdminView("monitor")}
+          />
+        ) : (
+          <Viewer
+            jwt={jwt}
+            onLogout={() => setJwt(null)}
+            isAdmin
+            onSwitchToAdmin={() => setAdminView("admin")}
+          />
+        )}
       </>
     );
   }

@@ -400,7 +400,7 @@ const TABS = [
   { id: "assignments", label: "Asignaciones" },
 ];
 
-export function AdminPanel({ jwt, onLogout }) {
+export function AdminPanel({ jwt, onLogout, onSwitchToMonitor }) {
   const [activeTab, setActiveTab] = useState("users");
 
   return (
@@ -411,12 +411,20 @@ export function AdminPanel({ jwt, onLogout }) {
           <h1 className="text-2xl font-semibold opacity-90">RingM — Admin</h1>
           <p className="text-white/40 text-sm mt-0.5">Panel de administración</p>
         </div>
-        <button
-          onClick={onLogout}
-          className="text-sm text-white/50 hover:text-white/80 transition"
-        >
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onSwitchToMonitor}
+            className="text-sm text-white/60 hover:text-white transition border border-white/20 px-3 py-1.5 rounded-lg"
+          >
+            Ver monitor
+          </button>
+          <button
+            onClick={onLogout}
+            className="text-sm text-white/50 hover:text-white/80 transition"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
