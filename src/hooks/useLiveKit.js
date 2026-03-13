@@ -3,9 +3,8 @@ import { Room, RoomEvent } from "livekit-client";
 
 const BACKEND_URL = "http://18.190.159.57:3000";
 const LIVEKIT_URL = "ws://18.190.159.57:7880";
-const ROOM_NAME = "sala_1";
 
-export function useLiveKit(videoRef, jwt) {
+export function useLiveKit(videoRef, jwt, roomName) {
   const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
   const roomRef = useRef(null);
 
@@ -14,19 +13,17 @@ export function useLiveKit(videoRef, jwt) {
     setStatus("connecting");
 
     try {
-      // Obtener token LiveKit con el JWT ya disponible
       const tokenRes = await fetch(`${BACKEND_URL}/api/livekit/token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${jwt}`,
         },
-        body: JSON.stringify({ room_name: ROOM_NAME }),
+        body: JSON.stringify({ room_name: roomName }),
       });
       if (!tokenRes.ok) throw new Error("No se pudo obtener token LiveKit");
       const { token } = await tokenRes.json();
 
-      // Conectar a la sala
       const room = new Room();
       roomRef.current = room;
 
@@ -48,7 +45,6 @@ export function useLiveKit(videoRef, jwt) {
 
       await room.connect(LIVEKIT_URL, token);
 
-      // Tracks ya publicados al conectar
       room.participants.forEach((participant) => {
         participant.tracks.forEach((pub) => {
           if (pub.track?.kind === "video" && videoRef.current) {
@@ -64,7 +60,7 @@ export function useLiveKit(videoRef, jwt) {
       setStatus("error");
       roomRef.current = null;
     }
-  }, [videoRef, jwt]);
+  }, [videoRef, jwt, roomName]);
 
   const disconnect = useCallback(() => {
     if (roomRef.current) {

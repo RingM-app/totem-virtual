@@ -1,16 +1,48 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Login } from "./components/Login";
-import { useLiveKit } from "./hooks/useLiveKit";
+import { CameraCard } from "./components/CameraCard";
+
+const BACKEND_URL = "http://18.190.159.57:3000";
+
+function Background() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10">
+      <div className="absolute inset-0 bg-[#090836]" />
+      <div
+        className="absolute -top-20 left-1/2 -translate-x-1/2 w-[1200px] h-[1200px] rounded-full blur-3xl opacity-20"
+        style={{ background: "#4E58FD" }}
+      />
+    </div>
+  );
+}
 
 function Viewer({ jwt, onLogout }) {
-  const videoRef = useRef(null);
-  const { status, connect, disconnect } = useLiveKit(videoRef, jwt);
+  const [cameras, setCameras] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const isConnected = status === "connected";
-  const isConnecting = status === "connecting";
+  useEffect(() => {
+    async function fetchCameras() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/cameras`, {
+          headers: { Authorization: `Bearer ${jwt}` },
+        });
+        if (!res.ok) throw new Error("Error al obtener cámaras");
+        const data = await res.json();
+        setCameras(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCameras();
+  }, [jwt]);
 
   return (
     <div className="min-h-screen text-white">
+      <Background />
+
       {/* Header */}
       <div className="py-6 px-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold opacity-90">RingM — Portero</h1>
@@ -22,68 +54,37 @@ function Viewer({ jwt, onLogout }) {
         </button>
       </div>
 
-      {/* Contenedor */}
-      <div className="flex justify-center px-4">
-        <div className="w-full max-w-5xl bg-white text-slate-900 rounded-2xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Entrada 1</h2>
+      {/* Contenido */}
+      <div className="px-6 pb-10 max-w-7xl mx-auto">
+        {loading && (
+          <p className="text-white/50 text-center mt-20">Cargando cámaras…</p>
+        )}
 
-          {/* Video */}
-          <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-            {!isConnected && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white/40 text-sm">
-                  {isConnecting ? "Conectando…" : "Sin señal"}
-                </span>
-              </div>
-            )}
+        {!loading && error && (
+          <p className="text-red-400 text-center mt-20">{error}</p>
+        )}
+
+        {!loading && !error && cameras.length === 0 && (
+          <p className="text-white/50 text-center mt-20">
+            No tienes cámaras asignadas.
+          </p>
+        )}
+
+        {!loading && !error && cameras.length > 0 && (
+          <div
+            className={`grid gap-6 ${
+              cameras.length === 1
+                ? "grid-cols-1 max-w-2xl mx-auto"
+                : cameras.length === 2
+                ? "grid-cols-1 sm:grid-cols-2"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+            }`}
+          >
+            {cameras.map((camera) => (
+              <CameraCard key={camera.id} camera={camera} jwt={jwt} />
+            ))}
           </div>
-
-          {/* Botones */}
-          <div className="mt-6 flex justify-center">
-            {!isConnected && !isConnecting && (
-              <button
-                onClick={connect}
-                style={{ backgroundColor: "#505cfc" }}
-                className="px-6 py-3 rounded-xl font-medium text-white hover:opacity-90 transition shadow"
-              >
-                Ver cámara
-              </button>
-            )}
-            {isConnecting && (
-              <button
-                disabled
-                style={{ backgroundColor: "#505cfc" }}
-                className="px-6 py-3 rounded-xl font-medium text-white opacity-50 cursor-not-allowed"
-              >
-                Conectando…
-              </button>
-            )}
-            {isConnected && (
-              <button
-                onClick={disconnect}
-                className="px-6 py-3 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition shadow"
-              >
-                Desconectar
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Fondo decorativo */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[#090836]" />
-        <div
-          className="absolute -top-20 left-1/2 -translate-x-1/2 w-[1200px] h-[1200px] rounded-full blur-3xl opacity-20"
-          style={{ background: "#4E58FD" }}
-        />
+        )}
       </div>
     </div>
   );
@@ -93,7 +94,12 @@ function App() {
   const [jwt, setJwt] = useState(null);
 
   if (!jwt) {
-    return <Login onLogin={setJwt} />;
+    return (
+      <>
+        <Background />
+        <Login onLogin={setJwt} />
+      </>
+    );
   }
 
   return <Viewer jwt={jwt} onLogout={() => setJwt(null)} />;
