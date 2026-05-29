@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const BACKEND_URL = "http://18.190.159.57:3000";
+import { BACKEND_URL } from "../config";
 
 function authHeaders(jwt) {
   return { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` };
@@ -380,7 +379,7 @@ function AssignmentsTab({ jwt }) {
               ) : assignments.map((a) => (
                 <tr key={a.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-700">{a.camera_name}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.camera_id}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.room_id}</td>
                   <td className="px-4 py-3 text-slate-400">{a.permissions}</td>
                 </tr>
               ))}

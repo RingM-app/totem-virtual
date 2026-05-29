@@ -9,10 +9,11 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
   const isConnecting = status === "connecting";
 
   // Auto-conectar al montar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (autoConnect) connect();
     return () => disconnect();
-  }, []);
+  }, []); // mount-only: connect/disconnect are stable refs, autoConnect is a mount-time prop
 
   return (
     <div className="bg-white text-slate-900 rounded-2xl shadow-lg p-4 flex flex-col gap-3">

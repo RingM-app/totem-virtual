@@ -1,8 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
-
-const BACKEND_URL = "http://18.190.159.57:3000";
-const LIVEKIT_URL = "ws://18.190.159.57:7880";
+import { BACKEND_URL, LIVEKIT_URL } from "../config";
 
 export function useLiveKit(videoRef, jwt, roomName) {
   const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
@@ -45,7 +43,7 @@ export function useLiveKit(videoRef, jwt, roomName) {
 
       await room.connect(LIVEKIT_URL, token);
 
-      room.participants.forEach((participant) => {
+      room.remoteParticipants.forEach((participant) => {
         participant.tracks.forEach((pub) => {
           if (pub.track?.kind === "video" && videoRef.current) {
             pub.track.attach(videoRef.current);
@@ -53,8 +51,6 @@ export function useLiveKit(videoRef, jwt, roomName) {
           }
         });
       });
-
-      if (status !== "connected") setStatus("connecting");
     } catch (err) {
       console.error("LiveKit error:", err);
       setStatus("error");

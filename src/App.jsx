@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Login } from "./components/Login";
 import { CameraCard } from "./components/CameraCard";
 import { AdminPanel } from "./components/AdminPanel";
+import { BACKEND_URL } from "./config";
+import { getStoredTokens, storeTokens, clearStoredTokens } from "./auth";
 
 function parseJwt(token) {
   try {
@@ -10,8 +12,6 @@ function parseJwt(token) {
     return {};
   }
 }
-
-const BACKEND_URL = "http://18.190.159.57:3000";
 
 function Background() {
   return (
@@ -85,7 +85,6 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
     <div className="min-h-screen text-white">
       <Background />
 
-      {/* Header */}
       <div className="py-6 px-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold opacity-90">RingM — Portero</h1>
         <div className="flex items-center gap-4">
@@ -115,7 +114,6 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
         </div>
       </div>
 
-      {/* Contenido */}
       <div className="px-6 pb-10 max-w-7xl mx-auto">
         {loading && (
           <p className="text-white/50 text-center mt-20">Cargando cámaras…</p>
@@ -151,7 +149,6 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
         )}
       </div>
 
-      {/* Modal fullscreen */}
       {expandedCamera && (
         <FullscreenModal
           camera={expandedCamera}
@@ -164,19 +161,62 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
 }
 
 function App() {
-  const [jwt, setJwt] = useState(null);
+  const [jwt, setJwt] = useState(() => getStoredTokens()?.access_token || null);
+  const [adminView, setAdminView] = useState("monitor");
+
+  // Refresca el access_token silenciosamente cada 12 minutos
+  useEffect(() => {
+    if (!jwt) return;
+    const doRefresh = async () => {
+      const stored = getStoredTokens();
+      if (!stored?.refresh_token) return;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: stored.refresh_token }),
+        });
+        if (res.ok) {
+          const { access_token } = await res.json();
+          storeTokens({ ...stored, access_token });
+          setJwt(access_token);
+        } else {
+          handleLogout();
+        }
+      } catch { /* error de red — reintenta en el próximo ciclo */ }
+    };
+    const id = setInterval(doRefresh, 12 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [jwt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleLogin(tokens) {
+    storeTokens(tokens);
+    setJwt(tokens.access_token);
+  }
+
+  function handleLogout() {
+    const stored = getStoredTokens();
+    if (stored?.refresh_token) {
+      fetch(`${BACKEND_URL}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: stored.refresh_token }),
+      }).catch(() => {});
+    }
+    clearStoredTokens();
+    setJwt(null);
+  }
 
   if (!jwt) {
     return (
       <>
         <Background />
-        <Login onLogin={setJwt} />
+        <Login onLogin={handleLogin} />
       </>
     );
   }
 
   const { role } = parseJwt(jwt);
-  const [adminView, setAdminView] = useState("monitor"); // "monitor" | "admin"
 
   if (role === "admin") {
     return (
@@ -185,13 +225,13 @@ function App() {
         {adminView === "admin" ? (
           <AdminPanel
             jwt={jwt}
-            onLogout={() => setJwt(null)}
+            onLogout={handleLogout}
             onSwitchToMonitor={() => setAdminView("monitor")}
           />
         ) : (
           <Viewer
             jwt={jwt}
-            onLogout={() => setJwt(null)}
+            onLogout={handleLogout}
             isAdmin
             onSwitchToAdmin={() => setAdminView("admin")}
           />
@@ -200,7 +240,7 @@ function App() {
     );
   }
 
-  return <Viewer jwt={jwt} onLogout={() => setJwt(null)} />;
+  return <Viewer jwt={jwt} onLogout={handleLogout} />;
 }
 
 export default App;

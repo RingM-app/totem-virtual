@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-
-const BACKEND_URL = "http://18.190.159.57:3000";
+import { BACKEND_URL } from "../config";
 
 export function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -19,8 +18,8 @@ export function Login({ onLogin }) {
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) throw new Error("Usuario o contraseña incorrectos");
-      const { token } = await res.json();
-      onLogin(token);
+      const { access_token, refresh_token } = await res.json();
+      onLogin({ access_token, refresh_token });
     } catch (err) {
       setError(err.message);
     } finally {
