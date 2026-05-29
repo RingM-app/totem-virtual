@@ -1,0 +1,17 @@
+token del cliente
+
+curl -X POST http://18.190.159.57:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "test",
+    "password": "1234"
+  }'
+
+
+
+curl -X POST http://18.190.159.57:3000/api/livekit/token \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJ1c2VybmFtZSI6InRlc3QiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NjM0OTkzMjEsImV4cCI6MTc2MzUwMjkyMX0.i-9QxcVo7JM5UMiYX6NIpvRxPIQV9RUnzQG_7rRE54A" \
+  -d '{
+    "room_name": "sala_1"
+  }'
