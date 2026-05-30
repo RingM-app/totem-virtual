@@ -2,9 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { BACKEND_URL, LIVEKIT_URL } from "../config";
 
-export function useLiveKit(videoRef, jwt, roomName) {
-  const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
-  const [callStatus, setCallStatus] = useState("idle"); // idle | calling | incall
+export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
+  const [status, setStatus] = useState("idle");
+  const [micOn, setMicOn] = useState(false);
+  const [camOn, setCamOn] = useState(false);
   const roomRef = useRef(null);
   const audioElRef = useRef(null);
 
@@ -31,6 +32,12 @@ export function useLiveKit(videoRef, jwt, roomName) {
         },
         body: JSON.stringify({ room_name: roomName }),
       });
+
+      if (tokenRes.status === 401) {
+        setStatus("idle");
+        onAuthError?.();
+        return;
+      }
       if (!tokenRes.ok) throw new Error("No se pudo obtener token LiveKit");
       const { token } = await tokenRes.json();
 
@@ -53,14 +60,17 @@ export function useLiveKit(videoRef, jwt, roomName) {
 
       room.on(RoomEvent.Disconnected, () => {
         setStatus("idle");
-        setCallStatus("idle");
+        setMicOn(false);
+        setCamOn(false);
         roomRef.current = null;
       });
 
       await room.connect(LIVEKIT_URL, token);
 
-      room.remoteParticipants.forEach((participant) => {
-        participant.tracks.forEach((pub) => {
+      const participants = room.remoteParticipants ?? room.participants;
+      participants?.forEach((participant) => {
+        const pubs = participant.trackPublications ?? participant.tracks;
+        pubs?.forEach((pub) => {
           if (pub.track?.kind === Track.Kind.Video && videoRef.current) {
             pub.track.attach(videoRef.current);
             setStatus("connected");
@@ -75,11 +85,12 @@ export function useLiveKit(videoRef, jwt, roomName) {
       setStatus("error");
       roomRef.current = null;
     }
-  }, [videoRef, jwt, roomName, getOrCreateAudioEl]);
+  }, [videoRef, jwt, roomName, getOrCreateAudioEl, onAuthError]);
 
   const disconnect = useCallback(() => {
     if (roomRef.current) {
       roomRef.current.localParticipant?.setMicrophoneEnabled(false).catch(() => {});
+      roomRef.current.localParticipant?.setCameraEnabled(false).catch(() => {});
       roomRef.current.disconnect();
       roomRef.current = null;
     }
@@ -89,26 +100,31 @@ export function useLiveKit(videoRef, jwt, roomName) {
       audioElRef.current = null;
     }
     setStatus("idle");
-    setCallStatus("idle");
+    setMicOn(false);
+    setCamOn(false);
   }, [videoRef]);
 
-  const startCall = useCallback(async () => {
-    if (!roomRef.current || callStatus !== "idle") return;
-    setCallStatus("calling");
-    try {
-      await roomRef.current.localParticipant.setMicrophoneEnabled(true);
-      setCallStatus("incall");
-    } catch (err) {
-      console.error("Call error:", err);
-      setCallStatus("idle");
-    }
-  }, [callStatus]);
-
-  const endCall = useCallback(async () => {
+  const toggleMic = useCallback(async () => {
     if (!roomRef.current) return;
-    await roomRef.current.localParticipant.setMicrophoneEnabled(false).catch(() => {});
-    setCallStatus("idle");
-  }, []);
+    try {
+      await roomRef.current.localParticipant.setMicrophoneEnabled(!micOn);
+      setMicOn((v) => !v);
+    } catch (err) {
+      console.error("Mic error:", err);
+    }
+  }, [micOn]);
 
-  return { status, callStatus, connect, disconnect, startCall, endCall };
+  const toggleCam = useCallback(async () => {
+    if (!roomRef.current) return;
+    try {
+      await roomRef.current.localParticipant.setCameraEnabled(!camOn, {
+        resolution: { width: 320, height: 240, frameRate: 15 },
+      });
+      setCamOn((v) => !v);
+    } catch (err) {
+      console.error("Cam error:", err);
+    }
+  }, [camOn]);
+
+  return { status, micOn, camOn, connect, disconnect, toggleMic, toggleCam };
 }

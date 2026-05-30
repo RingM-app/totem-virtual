@@ -50,7 +50,7 @@ function FullscreenModal({ camera, jwt, onClose }) {
             ✕ Cerrar (Esc)
           </button>
         </div>
-        <CameraCard camera={camera} jwt={jwt} autoConnect={true} />
+        <CameraCard camera={camera} jwt={jwt} autoConnect={true} onAuthError={onLogout} />
       </div>
     </div>
   );
@@ -69,6 +69,7 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
         const res = await fetch(`${BACKEND_URL}/api/cameras`, {
           headers: { Authorization: `Bearer ${jwt}` },
         });
+        if (res.status === 401) { onLogout(); return; }
         if (!res.ok) throw new Error("Error al obtener cámaras");
         const data = await res.json();
         setCameras(data);
@@ -143,6 +144,7 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
                 jwt={jwt}
                 autoConnect={connectAll}
                 onExpand={() => setExpandedCamera(camera)}
+                onAuthError={onLogout}
               />
             ))}
           </div>
@@ -185,7 +187,7 @@ function App() {
         }
       } catch { /* error de red — reintenta en el próximo ciclo */ }
     };
-    const id = setInterval(doRefresh, 12 * 60 * 1000);
+    const id = setInterval(doRefresh, 10 * 60 * 1000);
     return () => clearInterval(id);
   }, [jwt]); // eslint-disable-line react-hooks/exhaustive-deps
 
