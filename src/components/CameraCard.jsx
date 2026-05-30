@@ -33,7 +33,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
             {isConnected ? "En vivo" : isConnecting ? "Conectando…" : "Sin señal"}
           </span>
           {onExpand && (
-            <button onClick={onExpand} className="text-slate-400 hover:text-slate-600 transition" title="Ver en pantalla completa">
+            <button onClick={() => onExpand?.(videoRef)} className="text-slate-400 hover:text-slate-600 transition" title="Ver en pantalla completa">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
               </svg>
@@ -43,7 +43,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
       </div>
 
       {/* Video */}
-      <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden cursor-pointer" onClick={onExpand} title="Click para ampliar">
+      <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden cursor-pointer" onClick={() => onExpand?.(videoRef)} title="Click para ampliar">
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         {!isConnected && (
           <div className="absolute inset-0 flex items-center justify-center">

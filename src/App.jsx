@@ -25,7 +25,7 @@ function Background() {
   );
 }
 
-function FullscreenModal({ camera, jwt, onClose }) {
+function FullscreenModal({ camera, videoRef, onClose }) {
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKey);
@@ -33,24 +33,19 @@ function FullscreenModal({ camera, jwt, onClose }) {
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-5xl px-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={onClose}>
+      <div className="w-full max-w-6xl px-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-white font-semibold text-lg">{camera.name}</h2>
             {camera.location && <p className="text-white/40 text-sm">{camera.location}</p>}
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white text-sm">
-            ✕ Cerrar (Esc)
-          </button>
+          <button onClick={onClose} className="text-white/50 hover:text-white text-sm">✕ Cerrar (Esc)</button>
         </div>
-        <CameraCard camera={camera} jwt={jwt} autoConnect={true} onAuthError={onLogout} />
+        {/* Reusar el mismo videoRef — sin nueva conexión LiveKit */}
+        <div className="w-full aspect-[16/9] bg-black rounded-2xl overflow-hidden">
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+        </div>
       </div>
     </div>
   );
@@ -145,7 +140,7 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
                 camera={camera}
                 jwt={jwt}
                 autoConnect={connectAll}
-                onExpand={() => setExpandedCamera(camera)}
+                onExpand={(ref) => setExpandedCamera({ camera, videoRef: ref })}
                 onAuthError={onLogout}
               />
             ))}
@@ -155,8 +150,8 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
 
       {expandedCamera && (
         <FullscreenModal
-          camera={expandedCamera}
-          jwt={jwt}
+          camera={expandedCamera.camera}
+          videoRef={expandedCamera.videoRef}
           onClose={() => setExpandedCamera(null)}
         />
       )}
