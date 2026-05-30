@@ -87,7 +87,9 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
       <Background />
 
       <div className="py-6 px-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold opacity-90">Portero Virtual by RingM</h1>
+        <h1 className="text-2xl font-semibold opacity-90">
+          Portero Virtual <span className="text-sm font-normal opacity-50">by RingM</span>
+        </h1>
         <div className="flex items-center gap-4">
           {cameras.length > 1 && (
             <button

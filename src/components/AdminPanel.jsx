@@ -367,7 +367,9 @@ export function AdminPanel({ jwt, onLogout, onSwitchToMonitor }) {
     <div className="min-h-screen text-white">
       <div className="py-6 px-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold opacity-90">Portero Virtual by RingM</h1>
+          <h1 className="text-2xl font-semibold opacity-90">
+            Portero Virtual <span className="text-sm font-normal opacity-50">by RingM</span>
+          </h1>
           <p className="text-white/40 text-sm mt-0.5">Panel de administración</p>
         </div>
         <div className="flex items-center gap-4">
