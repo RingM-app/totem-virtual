@@ -1,10 +1,22 @@
 import { useCallback, useRef, useState } from "react";
-import { Room, RoomEvent } from "livekit-client";
+import { Room, RoomEvent, Track } from "livekit-client";
 import { BACKEND_URL, LIVEKIT_URL } from "../config";
 
 export function useLiveKit(videoRef, jwt, roomName) {
   const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
+  const [callStatus, setCallStatus] = useState("idle"); // idle | calling | incall
   const roomRef = useRef(null);
+  const audioElRef = useRef(null);
+
+  const getOrCreateAudioEl = useCallback(() => {
+    if (!audioElRef.current) {
+      const el = document.createElement("audio");
+      el.autoplay = true;
+      document.body.appendChild(el);
+      audioElRef.current = el;
+    }
+    return audioElRef.current;
+  }, []);
 
   const connect = useCallback(async () => {
     if (roomRef.current) return;
@@ -26,9 +38,12 @@ export function useLiveKit(videoRef, jwt, roomName) {
       roomRef.current = room;
 
       room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === "video" && videoRef.current) {
+        if (track.kind === Track.Kind.Video && videoRef.current) {
           track.attach(videoRef.current);
           setStatus("connected");
+        }
+        if (track.kind === Track.Kind.Audio) {
+          track.attach(getOrCreateAudioEl());
         }
       });
 
@@ -38,6 +53,7 @@ export function useLiveKit(videoRef, jwt, roomName) {
 
       room.on(RoomEvent.Disconnected, () => {
         setStatus("idle");
+        setCallStatus("idle");
         roomRef.current = null;
       });
 
@@ -45,9 +61,12 @@ export function useLiveKit(videoRef, jwt, roomName) {
 
       room.remoteParticipants.forEach((participant) => {
         participant.tracks.forEach((pub) => {
-          if (pub.track?.kind === "video" && videoRef.current) {
+          if (pub.track?.kind === Track.Kind.Video && videoRef.current) {
             pub.track.attach(videoRef.current);
             setStatus("connected");
+          }
+          if (pub.track?.kind === Track.Kind.Audio) {
+            pub.track.attach(getOrCreateAudioEl());
           }
         });
       });
@@ -56,18 +75,40 @@ export function useLiveKit(videoRef, jwt, roomName) {
       setStatus("error");
       roomRef.current = null;
     }
-  }, [videoRef, jwt, roomName]);
+  }, [videoRef, jwt, roomName, getOrCreateAudioEl]);
 
   const disconnect = useCallback(() => {
     if (roomRef.current) {
+      roomRef.current.localParticipant?.setMicrophoneEnabled(false).catch(() => {});
       roomRef.current.disconnect();
       roomRef.current = null;
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    if (audioElRef.current) {
+      audioElRef.current.remove();
+      audioElRef.current = null;
     }
     setStatus("idle");
+    setCallStatus("idle");
   }, [videoRef]);
 
-  return { status, connect, disconnect };
+  const startCall = useCallback(async () => {
+    if (!roomRef.current || callStatus !== "idle") return;
+    setCallStatus("calling");
+    try {
+      await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+      setCallStatus("incall");
+    } catch (err) {
+      console.error("Call error:", err);
+      setCallStatus("idle");
+    }
+  }, [callStatus]);
+
+  const endCall = useCallback(async () => {
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+    setCallStatus("idle");
+  }, []);
+
+  return { status, callStatus, connect, disconnect, startCall, endCall };
 }

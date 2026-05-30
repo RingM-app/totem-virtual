@@ -3,17 +3,18 @@ import { useLiveKit } from "../hooks/useLiveKit";
 
 export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
   const videoRef = useRef(null);
-  const { status, connect, disconnect } = useLiveKit(videoRef, jwt, camera.room_id);
+  const { status, callStatus, connect, disconnect, startCall, endCall } = useLiveKit(videoRef, jwt, camera.room_id);
 
   const isConnected = status === "connected";
   const isConnecting = status === "connecting";
+  const micOn = callStatus === "incall";
+  const micConnecting = callStatus === "calling";
 
-  // Auto-conectar al montar
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (autoConnect) connect();
     return () => disconnect();
-  }, []); // mount-only: connect/disconnect are stable refs, autoConnect is a mount-time prop
+  }, []);
 
   return (
     <div className="bg-white text-slate-900 rounded-2xl shadow-lg p-4 flex flex-col gap-3">
@@ -37,7 +38,6 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
           >
             {isConnected ? "En vivo" : isConnecting ? "Conectando…" : "Sin señal"}
           </span>
-          {/* Botón fullscreen */}
           {onExpand && (
             <button
               onClick={onExpand}
@@ -58,13 +58,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
         onClick={onExpand}
         title="Click para ampliar"
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover"
-        />
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         {!isConnected && (
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-white/40 text-sm">
@@ -72,9 +66,16 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
             </span>
           </div>
         )}
+        {/* Indicador mic activo sobre el video */}
+        {micOn && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-white text-xs">Micrófono activo</span>
+          </div>
+        )}
       </div>
 
-      {/* Botones manuales */}
+      {/* Botones */}
       <div className="flex justify-center gap-3">
         {!isConnected && !isConnecting && (
           <button
@@ -86,21 +87,50 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand }) {
           </button>
         )}
         {isConnecting && (
-          <button
-            disabled
-            style={{ backgroundColor: "#505cfc" }}
-            className="px-5 py-2 rounded-xl text-sm font-medium text-white opacity-50 cursor-not-allowed"
-          >
+          <button disabled style={{ backgroundColor: "#505cfc" }} className="px-5 py-2 rounded-xl text-sm font-medium text-white opacity-50 cursor-not-allowed">
             Conectando…
           </button>
         )}
         {isConnected && (
-          <button
-            onClick={disconnect}
-            className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition shadow"
-          >
-            Desconectar
-          </button>
+          <>
+            {/* Toggle micrófono */}
+            <button
+              onClick={micOn ? endCall : startCall}
+              disabled={micConnecting}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white transition shadow ${
+                micOn
+                  ? "bg-red-500 hover:bg-red-600"
+                  : micConnecting
+                  ? "bg-slate-300 cursor-not-allowed"
+                  : "bg-slate-600 hover:bg-slate-700"
+              }`}
+              title={micOn ? "Silenciar micrófono" : "Activar micrófono"}
+            >
+              {micOn ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v3m0 0h-3m3 0h3M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z"/>
+                    <line x1="3" y1="3" x2="21" y2="21" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Silenciar
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v3m0 0h-3m3 0h3M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z"/>
+                  </svg>
+                  {micConnecting ? "Activando…" : "Hablar"}
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={disconnect}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-slate-500 border border-slate-200 hover:bg-slate-50 transition"
+            >
+              Desconectar
+            </button>
+          </>
         )}
       </div>
     </div>
