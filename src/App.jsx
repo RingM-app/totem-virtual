@@ -176,9 +176,13 @@ function App() {
           body: JSON.stringify({ refresh_token: stored.refresh_token }),
         });
         if (res.ok) {
-          const { access_token } = await res.json();
-          storeTokens({ ...stored, access_token });
-          setJwt(access_token);
+          const data = await res.json();
+          // El backend rota el refresh_token — guardar el nuevo si viene
+          storeTokens({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token ?? stored.refresh_token,
+          });
+          setJwt(data.access_token);
         } else {
           handleLogout();
         }
