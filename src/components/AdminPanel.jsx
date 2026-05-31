@@ -24,12 +24,23 @@ function DeleteButton({ onConfirm }) {
   );
 }
 
+function EditButton({ onClick }) {
+  return (
+    <button onClick={onClick} className="text-slate-300 hover:text-[#505cfc] transition" title="Editar">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    </button>
+  );
+}
+
 // ─── USUARIOS ────────────────────────────────────────────────────────────────
 
 function UsersTab({ jwt }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ username: "", password: "", role: "guardia" });
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -42,15 +53,34 @@ function UsersTab({ jwt }) {
 
   useEffect(() => { fetchUsers(); }, []);
 
-  async function handleCreate(e) {
+  function startEdit(u) {
+    setEditingId(u.id);
+    setForm({ username: u.username, password: "", role: u.role });
+    setMsg("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm({ username: "", password: "", role: "guardia" });
+    setMsg("");
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true); setMsg("");
     try {
-      const res = await fetch(`${BACKEND_URL}/api/users/create`, { method: "POST", headers: authHeaders(jwt), body: JSON.stringify(form) });
+      const isEdit = editingId !== null;
+      const url = isEdit ? `${BACKEND_URL}/api/users/${editingId}` : `${BACKEND_URL}/api/users/create`;
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(jwt),
+        body: JSON.stringify(form),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMsg("Usuario creado correctamente");
-      setForm({ username: "", password: "", role: "guardia" });
+      setMsg(isEdit ? "Usuario actualizado correctamente" : "Usuario creado correctamente");
+      cancelEdit();
       fetchUsers();
     } catch (err) { setMsg(err.message); }
     finally { setSaving(false); }
@@ -61,18 +91,20 @@ function UsersTab({ jwt }) {
     fetchUsers();
   }
 
+  const isEdit = editingId !== null;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-white rounded-2xl shadow p-6">
-        <h3 className="text-base font-semibold text-slate-700 mb-4">Crear usuario</h3>
-        <form onSubmit={handleCreate} className="flex flex-wrap gap-3 items-end">
+        <h3 className="text-base font-semibold text-slate-700 mb-4">{isEdit ? "Editar usuario" : "Crear usuario"}</h3>
+        <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Usuario</label>
             <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="nombre de usuario" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Contraseña</label>
-            <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <label className="text-xs font-medium text-slate-500">{isEdit ? "Contraseña (dejar vacío = sin cambio)" : "Contraseña"}</label>
+            <input required={!isEdit} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Rol</label>
@@ -82,8 +114,13 @@ function UsersTab({ jwt }) {
             </select>
           </div>
           <button type="submit" disabled={saving} style={{ backgroundColor: "#505cfc" }} className="px-5 py-2 rounded-xl text-sm font-medium text-white hover:opacity-90 transition disabled:opacity-50">
-            {saving ? "Creando…" : "Crear"}
+            {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear"}
           </button>
+          {isEdit && (
+            <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-500 border border-slate-200 hover:bg-slate-50 transition">
+              Cancelar
+            </button>
+          )}
         </form>
         {msg && <p className={`text-sm mt-3 ${msg.includes("correctamente") ? "text-green-600" : "text-red-500"}`}>{msg}</p>}
       </div>
@@ -105,14 +142,19 @@ function UsersTab({ jwt }) {
             ) : users.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Sin usuarios</td></tr>
             ) : users.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50">
+              <tr key={u.id} className={`hover:bg-slate-50 ${editingId === u.id ? "bg-indigo-50" : ""}`}>
                 <td className="px-4 py-3 text-slate-400">{u.id}</td>
                 <td className="px-4 py-3 font-medium text-slate-700">{u.username}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === "admin" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"}`}>{u.role}</span>
                 </td>
                 <td className="px-4 py-3 text-slate-400">{new Date(u.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-right"><DeleteButton onConfirm={() => handleDelete(u.id)} /></td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-3">
+                    <EditButton onClick={() => startEdit(u)} />
+                    <DeleteButton onConfirm={() => handleDelete(u.id)} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -129,6 +171,7 @@ function CamerasTab({ jwt }) {
   const [onlineRooms, setOnlineRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: "", room_id: "", location: "" });
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -150,15 +193,34 @@ function CamerasTab({ jwt }) {
     return () => clearInterval(interval);
   }, []);
 
-  async function handleCreate(e) {
+  function startEdit(c) {
+    setEditingId(c.id);
+    setForm({ name: c.name, room_id: c.room_id, location: c.location || "" });
+    setMsg("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm({ name: "", room_id: "", location: "" });
+    setMsg("");
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true); setMsg("");
     try {
-      const res = await fetch(`${BACKEND_URL}/api/cameras`, { method: "POST", headers: authHeaders(jwt), body: JSON.stringify(form) });
+      const isEdit = editingId !== null;
+      const url = isEdit ? `${BACKEND_URL}/api/cameras/${editingId}` : `${BACKEND_URL}/api/cameras`;
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(jwt),
+        body: JSON.stringify(form),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMsg("Cámara creada correctamente");
-      setForm({ name: "", room_id: "", location: "" });
+      setMsg(isEdit ? "Cámara actualizada correctamente" : "Cámara creada correctamente");
+      cancelEdit();
       fetchCameras();
     } catch (err) { setMsg(err.message); }
     finally { setSaving(false); }
@@ -169,11 +231,13 @@ function CamerasTab({ jwt }) {
     fetchCameras();
   }
 
+  const isEdit = editingId !== null;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-white rounded-2xl shadow p-6">
-        <h3 className="text-base font-semibold text-slate-700 mb-4">Crear cámara</h3>
-        <form onSubmit={handleCreate} className="flex flex-wrap gap-3 items-end">
+        <h3 className="text-base font-semibold text-slate-700 mb-4">{isEdit ? "Editar cámara" : "Crear cámara"}</h3>
+        <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Nombre</label>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej: Portería Norte" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
@@ -187,8 +251,13 @@ function CamerasTab({ jwt }) {
             <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Opcional" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
           </div>
           <button type="submit" disabled={saving} style={{ backgroundColor: "#505cfc" }} className="px-5 py-2 rounded-xl text-sm font-medium text-white hover:opacity-90 transition disabled:opacity-50">
-            {saving ? "Creando…" : "Crear"}
+            {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear"}
           </button>
+          {isEdit && (
+            <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-500 border border-slate-200 hover:bg-slate-50 transition">
+              Cancelar
+            </button>
+          )}
         </form>
         {msg && <p className={`text-sm mt-3 ${msg.includes("correctamente") ? "text-green-600" : "text-red-500"}`}>{msg}</p>}
       </div>
@@ -213,7 +282,7 @@ function CamerasTab({ jwt }) {
             ) : cameras.map((c) => {
               const online = onlineRooms.includes(c.room_id);
               return (
-                <tr key={c.id} className="hover:bg-slate-50">
+                <tr key={c.id} className={`hover:bg-slate-50 ${editingId === c.id ? "bg-indigo-50" : ""}`}>
                   <td className="px-4 py-3 text-slate-400">{c.id}</td>
                   <td className="px-4 py-3 font-medium text-slate-700">{c.name}</td>
                   <td className="px-4 py-3 font-mono text-slate-500 text-xs">{c.room_id}</td>
@@ -224,7 +293,12 @@ function CamerasTab({ jwt }) {
                       {online ? "Online" : "Offline"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right"><DeleteButton onConfirm={() => handleDelete(c.id)} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-3">
+                      <EditButton onClick={() => startEdit(c)} />
+                      <DeleteButton onConfirm={() => handleDelete(c.id)} />
+                    </div>
+                  </td>
                 </tr>
               );
             })}
