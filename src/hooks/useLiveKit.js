@@ -118,7 +118,7 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
     if (!roomRef.current) return;
     try {
       await roomRef.current.localParticipant.setCameraEnabled(!camOn, {
-        resolution: { width: 320, height: 240, frameRate: 15 },
+        resolution: { width: 1280, height: 720, frameRate: 30 },
       });
       setCamOn((v) => !v);
     } catch (err) {
