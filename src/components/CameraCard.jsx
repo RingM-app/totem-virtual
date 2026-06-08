@@ -3,10 +3,30 @@ import { useLiveKit } from "../hooks/useLiveKit";
 
 export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthError }) {
   const videoRef = useRef(null);
-  const { status, micOn, camOn, connect, disconnect, toggleMic, toggleCam } = useLiveKit(videoRef, jwt, camera.room_id, onAuthError);
+  const { status, hasVideo, hasDevice, error, micOn, camOn, connect, disconnect, toggleMic, toggleCam } = useLiveKit(videoRef, jwt, camera.room_id, onAuthError);
 
-  const isConnected = status === "connected";
   const isConnecting = status === "connecting";
+  const isError = status === "error";
+  const roomConnected = status === "connected";   // guardia unido al room
+  const isLive = roomConnected && hasVideo;        // hay video de la cámara
+  const isWaiting = roomConnected && hasDevice && !hasVideo; // Pi conectada, sin transmitir video
+  const isOffline = roomConnected && !hasDevice;   // ninguna Pi en el room
+
+  // Estado para badge + overlay
+  let label, badgeClass, overlay;
+  if (isLive) {
+    label = "En vivo"; badgeClass = "bg-green-100 text-green-600";
+  } else if (isConnecting) {
+    label = "Conectando…"; badgeClass = "bg-yellow-100 text-yellow-600"; overlay = "Conectando…";
+  } else if (isError) {
+    label = "Error"; badgeClass = "bg-red-100 text-red-600"; overlay = error || "Error de conexión";
+  } else if (isWaiting) {
+    label = "Sin cámara"; badgeClass = "bg-amber-100 text-amber-600"; overlay = "Cámara conectada — sin transmitir video";
+  } else if (isOffline) {
+    label = "Offline"; badgeClass = "bg-slate-200 text-slate-500"; overlay = "Cámara desconectada";
+  } else {
+    label = "Sin señal"; badgeClass = "bg-slate-100 text-slate-400"; overlay = "Sin señal";
+  }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -25,12 +45,8 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            isConnected ? "bg-green-100 text-green-600"
-            : isConnecting ? "bg-yellow-100 text-yellow-600"
-            : "bg-slate-100 text-slate-400"
-          }`}>
-            {isConnected ? "En vivo" : isConnecting ? "Conectando…" : "Sin señal"}
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+            {label}
           </span>
           {onExpand && (
             <button onClick={() => onExpand?.(videoRef)} className="text-slate-400 hover:text-slate-600 transition" title="Ver en pantalla completa">
@@ -45,9 +61,12 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
       {/* Video */}
       <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden cursor-pointer" onClick={() => onExpand?.(videoRef)} title="Click para ampliar">
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-        {!isConnected && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white/40 text-sm">{isConnecting ? "Conectando…" : "Sin señal"}</span>
+        {!isLive && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center">
+            <span className={`text-sm ${isError ? "text-red-300" : "text-white/50"}`}>{overlay}</span>
+            {(isWaiting || isOffline) && (
+              <span className="text-white/30 text-xs">{isOffline ? "La Pi no está conectada" : "Esperando que la cámara publique"}</span>
+            )}
           </div>
         )}
         {/* Indicadores activos sobre el video */}
@@ -71,7 +90,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
 
       {/* Botones */}
       <div className="flex justify-center gap-2">
-        {!isConnected && !isConnecting && (
+        {(status === "idle" || isError) && (
           <button onClick={connect} style={{ backgroundColor: "#505cfc" }} className="px-5 py-2 rounded-xl text-sm font-medium text-white hover:opacity-90 transition shadow">
             Reconectar
           </button>
@@ -81,7 +100,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
             Conectando…
           </button>
         )}
-        {isConnected && (
+        {roomConnected && (
           <>
             {/* Toggle micrófono */}
             <button

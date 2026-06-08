@@ -100,15 +100,15 @@ function UsersTab({ jwt }) {
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Usuario</label>
-            <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="nombre de usuario" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="nombre de usuario" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">{isEdit ? "Contraseña (dejar vacío = sin cambio)" : "Contraseña"}</label>
-            <input required={!isEdit} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <input required={!isEdit} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Rol</label>
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]">
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800">
               <option value="guardia">Guardia</option>
               <option value="admin">Admin</option>
             </select>
@@ -240,15 +240,15 @@ function CamerasTab({ jwt }) {
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Nombre</label>
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej: Portería Norte" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej: Portería Norte" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Room ID (LiveKit)</label>
-            <input required value={form.room_id} onChange={(e) => setForm({ ...form, room_id: e.target.value })} placeholder="Ej: cam-01" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <input required value={form.room_id} onChange={(e) => setForm({ ...form, room_id: e.target.value })} placeholder="Ej: cam-01" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Ubicación</label>
-            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Opcional" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]" />
+            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Opcional" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800" />
           </div>
           <button type="submit" disabled={saving} style={{ backgroundColor: "#505cfc" }} className="px-5 py-2 rounded-xl text-sm font-medium text-white hover:opacity-90 transition disabled:opacity-50">
             {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear"}
@@ -365,7 +365,7 @@ function AssignmentsTab({ jwt }) {
         <form onSubmit={handleAssign} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Guardia</label>
-            <select required value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]">
+            <select required value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800">
               <option value="">Seleccionar…</option>
               {users.filter(u => u.role !== "admin").map((u) => (
                 <option key={u.id} value={u.id}>{u.username}</option>
@@ -374,7 +374,7 @@ function AssignmentsTab({ jwt }) {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Cámara</label>
-            <select required value={form.camera_id} onChange={(e) => setForm({ ...form, camera_id: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc]">
+            <select required value={form.camera_id} onChange={(e) => setForm({ ...form, camera_id: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800">
               <option value="">Seleccionar…</option>
               {cameras.map((c) => (
                 <option key={c.id} value={c.id}>{c.name} — {c.room_id}</option>
@@ -390,7 +390,7 @@ function AssignmentsTab({ jwt }) {
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h3 className="text-base font-semibold text-slate-700 mb-4">Ver asignaciones por guardia</h3>
-        <select value={selectedUser} onChange={(e) => fetchAssignments(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] mb-4">
+        <select value={selectedUser} onChange={(e) => fetchAssignments(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800 mb-4">
           <option value="">Seleccionar guardia…</option>
           {users.filter(u => u.role !== "admin").map((u) => (
             <option key={u.id} value={u.id}>{u.username}</option>
