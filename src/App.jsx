@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Login } from "./components/Login";
 import { CameraCard } from "./components/CameraCard";
 import { AdminPanel } from "./components/AdminPanel";
@@ -26,11 +26,21 @@ function Background() {
 }
 
 function FullscreenModal({ camera, videoRef, onClose }) {
+  const modalRef = useRef(null);
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Reusar el MediaStream del <video> de la tarjeta (el track de LiveKit ya está
+  // pegado ahí). Antes se compartía el mismo ref → el modal quedaba sin srcObject
+  // (negro). Ahora el modal tiene su propio video y copia el stream.
+  useEffect(() => {
+    if (modalRef.current && videoRef?.current) {
+      modalRef.current.srcObject = videoRef.current.srcObject;
+    }
+  }, [videoRef]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={onClose}>
@@ -42,9 +52,8 @@ function FullscreenModal({ camera, videoRef, onClose }) {
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white text-sm">✕ Cerrar (Esc)</button>
         </div>
-        {/* Reusar el mismo videoRef — sin nueva conexión LiveKit */}
         <div className="w-full aspect-[16/9] bg-black rounded-2xl overflow-hidden">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+          <video ref={modalRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         </div>
       </div>
     </div>
@@ -163,9 +172,11 @@ function App() {
   const [jwt, setJwt] = useState(() => getStoredTokens()?.access_token || null);
   const [adminView, setAdminView] = useState("monitor");
 
-  // Refresca el access_token silenciosamente cada 12 minutos
+  // Refresca el access_token: UNA vez al montar (por si el guardado ya venció —
+  // antes solo refrescaba cada 10min, así que volver con el token vencido te
+  // deslogueaba en vez de refrescar) y luego cada 10 minutos. Deps [] para correr
+  // solo al montar (doRefresh usa getStoredTokens() fresco + setJwt estable).
   useEffect(() => {
-    if (!jwt) return;
     const doRefresh = async () => {
       const stored = getStoredTokens();
       if (!stored?.refresh_token) return;
@@ -183,14 +194,15 @@ function App() {
             refresh_token: data.refresh_token ?? stored.refresh_token,
           });
           setJwt(data.access_token);
-        } else {
-          handleLogout();
+        } else if (res.status === 401) {
+          handleLogout();   // refresh inválido/vencido → cerrar sesión (un 500 NO desloguea)
         }
       } catch { /* error de red — reintenta en el próximo ciclo */ }
     };
+    doRefresh();                                    // inmediato al cargar
     const id = setInterval(doRefresh, 10 * 60 * 1000);
     return () => clearInterval(id);
-  }, [jwt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleLogin(tokens) {
     storeTokens(tokens);
