@@ -5,6 +5,33 @@ function authHeaders(jwt) {
   return { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` };
 }
 
+// Envuelve fetch para que el panel se comporte como el monitor: un 401 cierra la
+// sesión en vez de dejar la acción fallando en silencio. Devuelve el JSON parseado
+// y lanza Error con el mensaje del backend si la respuesta no es ok.
+async function apiFetch(url, options, onAuthError) {
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch {
+    throw new Error("Sin conexión con el servidor");
+  }
+
+  if (res.status === 401) {
+    onAuthError?.();
+    throw new Error("Sesión expirada");
+  }
+
+  // Un DELETE puede responder 204 sin cuerpo, y un 500 puede devolver HTML.
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch { /* respuesta no-JSON */ }
+  }
+
+  if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
+  return data;
+}
+
 function DeleteButton({ onConfirm }) {
   const [confirming, setConfirming] = useState(false);
   if (confirming) {
@@ -36,19 +63,27 @@ function EditButton({ onClick }) {
 
 // ─── USUARIOS ────────────────────────────────────────────────────────────────
 
-function UsersTab({ jwt }) {
+function UsersTab({ jwt, onAuthError }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({ username: "", password: "", role: "guardia" });
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState({ text: "", ok: false });
 
   async function fetchUsers() {
     setLoading(true);
-    const res = await fetch(`${BACKEND_URL}/api/users`, { headers: authHeaders(jwt) });
-    setUsers(await res.json());
-    setLoading(false);
+    try {
+      const data = await apiFetch(`${BACKEND_URL}/api/users`, { headers: authHeaders(jwt) }, onAuthError);
+      setUsers(Array.isArray(data) ? data : []);
+      setLoadError("");
+    } catch (err) {
+      setUsers([]);
+      setLoadError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchUsers(); }, []);
@@ -56,39 +91,40 @@ function UsersTab({ jwt }) {
   function startEdit(u) {
     setEditingId(u.id);
     setForm({ username: u.username, password: "", role: u.role });
-    setMsg("");
+    setMsg({ text: "", ok: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
     setEditingId(null);
     setForm({ username: "", password: "", role: "guardia" });
-    setMsg("");
+    setMsg({ text: "", ok: false });
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true); setMsg("");
+    setSaving(true); setMsg({ text: "", ok: false });
     try {
       const isEdit = editingId !== null;
       const url = isEdit ? `${BACKEND_URL}/api/users/${editingId}` : `${BACKEND_URL}/api/users/create`;
-      const res = await fetch(url, {
+      await apiFetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: authHeaders(jwt),
         body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setMsg(isEdit ? "Usuario actualizado correctamente" : "Usuario creado correctamente");
+      }, onAuthError);
       cancelEdit();
+      setMsg({ text: isEdit ? "Usuario actualizado correctamente" : "Usuario creado correctamente", ok: true });
       fetchUsers();
-    } catch (err) { setMsg(err.message); }
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id) {
-    await fetch(`${BACKEND_URL}/api/users/${id}`, { method: "DELETE", headers: authHeaders(jwt) });
-    fetchUsers();
+    try {
+      await apiFetch(`${BACKEND_URL}/api/users/${id}`, { method: "DELETE", headers: authHeaders(jwt) }, onAuthError);
+      setMsg({ text: "Usuario eliminado correctamente", ok: true });
+      fetchUsers();
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
   }
 
   const isEdit = editingId !== null;
@@ -122,7 +158,7 @@ function UsersTab({ jwt }) {
             </button>
           )}
         </form>
-        {msg && <p className={`text-sm mt-3 ${msg.includes("correctamente") ? "text-green-600" : "text-red-500"}`}>{msg}</p>}
+        {msg.text && <p className={`text-sm mt-3 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
       </div>
 
       <div className="bg-white rounded-2xl shadow overflow-hidden">
@@ -139,6 +175,8 @@ function UsersTab({ jwt }) {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>
+            ) : loadError ? (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-red-500">{loadError}</td></tr>
             ) : users.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Sin usuarios</td></tr>
             ) : users.map((u) => (
@@ -166,25 +204,30 @@ function UsersTab({ jwt }) {
 
 // ─── CÁMARAS ─────────────────────────────────────────────────────────────────
 
-function CamerasTab({ jwt }) {
+function CamerasTab({ jwt, onAuthError }) {
   const [cameras, setCameras] = useState([]);
   const [onlineRooms, setOnlineRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({ name: "", room_id: "", location: "" });
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState({ text: "", ok: false });
 
   async function fetchCameras() {
-    setLoading(true);
-    const [cRes, sRes] = await Promise.all([
-      fetch(`${BACKEND_URL}/api/cameras/all`, { headers: authHeaders(jwt) }),
-      fetch(`${BACKEND_URL}/api/livekit/status`, { headers: authHeaders(jwt) }),
-    ]);
-    setCameras(await cRes.json());
-    const status = await sRes.json();
-    setOnlineRooms(status.online || []);
-    setLoading(false);
+    try {
+      const [cameraList, status] = await Promise.all([
+        apiFetch(`${BACKEND_URL}/api/cameras/all`, { headers: authHeaders(jwt) }, onAuthError),
+        apiFetch(`${BACKEND_URL}/api/livekit/status`, { headers: authHeaders(jwt) }, onAuthError),
+      ]);
+      setCameras(Array.isArray(cameraList) ? cameraList : []);
+      setOnlineRooms(status?.online || []);
+      setLoadError("");
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -196,39 +239,40 @@ function CamerasTab({ jwt }) {
   function startEdit(c) {
     setEditingId(c.id);
     setForm({ name: c.name, room_id: c.room_id, location: c.location || "" });
-    setMsg("");
+    setMsg({ text: "", ok: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
     setEditingId(null);
     setForm({ name: "", room_id: "", location: "" });
-    setMsg("");
+    setMsg({ text: "", ok: false });
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true); setMsg("");
+    setSaving(true); setMsg({ text: "", ok: false });
     try {
       const isEdit = editingId !== null;
       const url = isEdit ? `${BACKEND_URL}/api/cameras/${editingId}` : `${BACKEND_URL}/api/cameras`;
-      const res = await fetch(url, {
+      await apiFetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: authHeaders(jwt),
         body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setMsg(isEdit ? "Cámara actualizada correctamente" : "Cámara creada correctamente");
+      }, onAuthError);
       cancelEdit();
+      setMsg({ text: isEdit ? "Cámara actualizada correctamente" : "Cámara creada correctamente", ok: true });
       fetchCameras();
-    } catch (err) { setMsg(err.message); }
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id) {
-    await fetch(`${BACKEND_URL}/api/cameras/${id}`, { method: "DELETE", headers: authHeaders(jwt) });
-    fetchCameras();
+    try {
+      await apiFetch(`${BACKEND_URL}/api/cameras/${id}`, { method: "DELETE", headers: authHeaders(jwt) }, onAuthError);
+      setMsg({ text: "Cámara eliminada correctamente", ok: true });
+      fetchCameras();
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
   }
 
   const isEdit = editingId !== null;
@@ -259,10 +303,13 @@ function CamerasTab({ jwt }) {
             </button>
           )}
         </form>
-        {msg && <p className={`text-sm mt-3 ${msg.includes("correctamente") ? "text-green-600" : "text-red-500"}`}>{msg}</p>}
+        {msg.text && <p className={`text-sm mt-3 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
       </div>
 
       <div className="bg-white rounded-2xl shadow overflow-hidden">
+        {loadError && !loading && (
+          <p className="px-4 py-2 text-xs text-red-500 bg-red-50 border-b border-red-100">{loadError}</p>
+        )}
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
@@ -311,23 +358,27 @@ function CamerasTab({ jwt }) {
 
 // ─── ASIGNACIONES ─────────────────────────────────────────────────────────────
 
-function AssignmentsTab({ jwt }) {
+function AssignmentsTab({ jwt, onAuthError }) {
   const [users, setUsers] = useState([]);
   const [cameras, setCameras] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [form, setForm] = useState({ user_id: "", camera_id: "" });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState({ text: "", ok: false });
 
   useEffect(() => {
     async function fetchAll() {
-      const [uRes, cRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/users`, { headers: authHeaders(jwt) }),
-        fetch(`${BACKEND_URL}/api/cameras/all`, { headers: authHeaders(jwt) }),
-      ]);
-      setUsers(await uRes.json());
-      setCameras(await cRes.json());
+      try {
+        const [userList, cameraList] = await Promise.all([
+          apiFetch(`${BACKEND_URL}/api/users`, { headers: authHeaders(jwt) }, onAuthError),
+          apiFetch(`${BACKEND_URL}/api/cameras/all`, { headers: authHeaders(jwt) }, onAuthError),
+        ]);
+        setUsers(Array.isArray(userList) ? userList : []);
+        setCameras(Array.isArray(cameraList) ? cameraList : []);
+      } catch (err) {
+        setMsg({ text: err.message, ok: false });
+      }
     }
     fetchAll();
   }, [jwt]);
@@ -336,26 +387,35 @@ function AssignmentsTab({ jwt }) {
     setSelectedUser(userId);
     setAssignments([]);
     if (!userId) return;
-    const res = await fetch(`${BACKEND_URL}/api/assignments/by-user/${userId}`, { headers: authHeaders(jwt) });
-    setAssignments(await res.json());
+    try {
+      const data = await apiFetch(`${BACKEND_URL}/api/assignments/by-user/${userId}`, { headers: authHeaders(jwt) }, onAuthError);
+      setAssignments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setMsg({ text: err.message, ok: false });
+    }
   }
 
   async function handleAssign(e) {
     e.preventDefault();
-    setSaving(true); setMsg("");
+    setSaving(true); setMsg({ text: "", ok: false });
     try {
-      const res = await fetch(`${BACKEND_URL}/api/assignments`, { method: "POST", headers: authHeaders(jwt), body: JSON.stringify({ user_id: Number(form.user_id), camera_id: Number(form.camera_id) }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setMsg("Asignación guardada");
+      await apiFetch(`${BACKEND_URL}/api/assignments`, {
+        method: "POST",
+        headers: authHeaders(jwt),
+        body: JSON.stringify({ user_id: Number(form.user_id), camera_id: Number(form.camera_id) }),
+      }, onAuthError);
+      setMsg({ text: "Asignación guardada", ok: true });
       if (selectedUser === form.user_id) fetchAssignments(selectedUser);
-    } catch (err) { setMsg(err.message); }
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
     finally { setSaving(false); }
   }
 
   async function handleDeleteAssignment(id) {
-    await fetch(`${BACKEND_URL}/api/assignments/${id}`, { method: "DELETE", headers: authHeaders(jwt) });
-    fetchAssignments(selectedUser);
+    try {
+      await apiFetch(`${BACKEND_URL}/api/assignments/${id}`, { method: "DELETE", headers: authHeaders(jwt) }, onAuthError);
+      setMsg({ text: "Asignación eliminada", ok: true });
+      fetchAssignments(selectedUser);
+    } catch (err) { setMsg({ text: err.message, ok: false }); }
   }
 
   return (
@@ -385,7 +445,7 @@ function AssignmentsTab({ jwt }) {
             {saving ? "Guardando…" : "Asignar"}
           </button>
         </form>
-        {msg && <p className={`text-sm mt-3 ${msg.includes("guardada") ? "text-green-600" : "text-red-500"}`}>{msg}</p>}
+        {msg.text && <p className={`text-sm mt-3 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
@@ -465,9 +525,9 @@ export function AdminPanel({ jwt, onLogout, onSwitchToMonitor }) {
             </button>
           ))}
         </div>
-        {activeTab === "users"       && <UsersTab       jwt={jwt} />}
-        {activeTab === "cameras"     && <CamerasTab     jwt={jwt} />}
-        {activeTab === "assignments" && <AssignmentsTab jwt={jwt} />}
+        {activeTab === "users"       && <UsersTab       jwt={jwt} onAuthError={onLogout} />}
+        {activeTab === "cameras"     && <CamerasTab     jwt={jwt} onAuthError={onLogout} />}
+        {activeTab === "assignments" && <AssignmentsTab jwt={jwt} onAuthError={onLogout} />}
       </div>
     </div>
   );

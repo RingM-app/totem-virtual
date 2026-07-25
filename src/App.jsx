@@ -34,12 +34,22 @@ function FullscreenModal({ camera, videoRef, onClose }) {
   }, [onClose]);
 
   // Reusar el MediaStream del <video> de la tarjeta (el track de LiveKit ya está
-  // pegado ahí). Antes se compartía el mismo ref → el modal quedaba sin srcObject
-  // (negro). Ahora el modal tiene su propio video y copia el stream.
+  // pegado ahí). Se sincroniza con un intervalo, no una sola copia al montar:
+  // si la cámara todavía estaba "Conectando…" cuando se abrió el modal, el
+  // srcObject de la tarjeta llega recién después (evento TrackSubscribed) y el
+  // modal se quedaba negro para siempre. También cubre reconexiones, donde
+  // LiveKit reasigna el srcObject de la tarjeta más adelante.
   useEffect(() => {
-    if (modalRef.current && videoRef?.current) {
-      modalRef.current.srcObject = videoRef.current.srcObject;
-    }
+    const sync = () => {
+      const source = videoRef?.current;
+      const target = modalRef.current;
+      if (source && target && target.srcObject !== source.srcObject) {
+        target.srcObject = source.srcObject;
+      }
+    };
+    sync();
+    const id = setInterval(sync, 500);
+    return () => clearInterval(id);
   }, [videoRef]);
 
   return (

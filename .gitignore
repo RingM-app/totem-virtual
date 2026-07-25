@@ -22,4 +22,7 @@
 # generated
 src/output.css
 src/input.css
+
+# archivos de prueba con credenciales — no trackear
 totem.rest
+test.html
