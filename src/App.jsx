@@ -33,12 +33,11 @@ function FullscreenModal({ camera, videoRef, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Reusar el MediaStream del <video> de la tarjeta (el track de LiveKit ya está
-  // pegado ahí). Se sincroniza con un intervalo, no una sola copia al montar:
-  // si la cámara todavía estaba "Conectando…" cuando se abrió el modal, el
-  // srcObject de la tarjeta llega recién después (evento TrackSubscribed) y el
-  // modal se quedaba negro para siempre. También cubre reconexiones, donde
-  // LiveKit reasigna el srcObject de la tarjeta más adelante.
+  // Reuse the MediaStream from the card's <video> (the LiveKit track is already
+  // attached there). Synced with an interval, not a single copy on mount: if the
+  // camera was still "Conectando…" when the modal opened, the card's srcObject only
+  // arrives later (TrackSubscribed event) and the modal stayed black forever. Also
+  // covers reconnects, where LiveKit reassigns the card's srcObject later on.
   useEffect(() => {
     const sync = () => {
       const source = videoRef?.current;

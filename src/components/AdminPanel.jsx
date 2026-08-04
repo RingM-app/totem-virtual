@@ -5,9 +5,9 @@ function authHeaders(jwt) {
   return { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` };
 }
 
-// Envuelve fetch para que el panel se comporte como el monitor: un 401 cierra la
-// sesión en vez de dejar la acción fallando en silencio. Devuelve el JSON parseado
-// y lanza Error con el mensaje del backend si la respuesta no es ok.
+// Wraps fetch so the panel behaves like the monitor: a 401 closes the session
+// instead of leaving the action failing silently. Returns the parsed JSON and
+// throws Error with the backend message if the response isn't ok.
 async function apiFetch(url, options, onAuthError) {
   let res;
   try {
@@ -21,11 +21,11 @@ async function apiFetch(url, options, onAuthError) {
     throw new Error("Sesión expirada");
   }
 
-  // Un DELETE puede responder 204 sin cuerpo, y un 500 puede devolver HTML.
+  // A DELETE may reply 204 with no body, and a 500 may return HTML.
   const text = await res.text();
   let data = null;
   if (text) {
-    try { data = JSON.parse(text); } catch { /* respuesta no-JSON */ }
+    try { data = JSON.parse(text); } catch { /* non-JSON response */ }
   }
 
   if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
