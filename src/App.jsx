@@ -3,15 +3,7 @@ import { Login } from "./components/Login";
 import { CameraCard } from "./components/CameraCard";
 import { AdminPanel } from "./components/AdminPanel";
 import { BACKEND_URL } from "./config";
-import { getStoredTokens, storeTokens, clearStoredTokens } from "./auth";
-
-function parseJwt(token) {
-  try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch {
-    return {};
-  }
-}
+import { getStoredTokens, storeTokens, clearStoredTokens, parseJwt, refreshSession, STORAGE_KEY } from "./auth";
 
 function Background() {
   return (
@@ -69,7 +61,7 @@ function FullscreenModal({ camera, videoRef, onClose }) {
   );
 }
 
-function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
+function Viewer({ jwt, onLogout, onAuthError, isAdmin = false, canTalk = true, onSwitchToAdmin }) {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -82,7 +74,7 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
         const res = await fetch(`${BACKEND_URL}/api/cameras`, {
           headers: { Authorization: `Bearer ${jwt}` },
         });
-        if (res.status === 401) { onLogout(); return; }
+        if (res.status === 401) { onAuthError(); return; }
         if (!res.ok) throw new Error("Error al obtener cámaras");
         const data = await res.json();
         setCameras(data);
@@ -159,7 +151,8 @@ function Viewer({ jwt, onLogout, isAdmin = false, onSwitchToAdmin }) {
                 jwt={jwt}
                 autoConnect={connectAll}
                 onExpand={(ref) => setExpandedCamera({ camera, videoRef: ref })}
-                onAuthError={onLogout}
+                onAuthError={onAuthError}
+                canTalk={canTalk}
               />
             ))}
           </div>
@@ -181,37 +174,45 @@ function App() {
   const [jwt, setJwt] = useState(() => getStoredTokens()?.access_token || null);
   const [adminView, setAdminView] = useState("monitor");
 
-  // Refresca el access_token: UNA vez al montar (por si el guardado ya venció —
-  // antes solo refrescaba cada 10min, así que volver con el token vencido te
-  // deslogueaba en vez de refrescar) y luego cada 10 minutos. Deps [] para correr
-  // solo al montar (doRefresh usa getStoredTokens() fresco + setJwt estable).
+  // Refreshes the access token (15 min) once on mount — the stored one may have
+  // expired — then every 10 minutes and whenever the tab becomes visible again (timers
+  // stall while a laptop sleeps, so waking up used to hit 401s and log the guard out).
   useEffect(() => {
     const doRefresh = async () => {
-      const stored = getStoredTokens();
-      if (!stored?.refresh_token) return;
+      if (!getStoredTokens()?.refresh_token) return;
       try {
-        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: stored.refresh_token }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // El backend rota el refresh_token — guardar el nuevo si viene
-          storeTokens({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token ?? stored.refresh_token,
-          });
-          setJwt(data.access_token);
-        } else if (res.status === 401) {
-          handleLogout();   // refresh inválido/vencido → cerrar sesión (un 500 NO desloguea)
-        }
-      } catch { /* error de red — reintenta en el próximo ciclo */ }
+        const token = await refreshSession();
+        if (token) setJwt(token);
+        else handleLogout();      // refresh rejected → session is gone (a 500 doesn't log out)
+      } catch { /* network/server error — retry on the next cycle */ }
     };
-    doRefresh();                                    // inmediato al cargar
+    const onVisible = () => { if (document.visibilityState === "visible") doRefresh(); };
+    // Another tab logged in, out or rotated the tokens: follow it.
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY) return;
+      setJwt(getStoredTokens()?.access_token || null);
+    };
+    doRefresh();
     const id = setInterval(doRefresh, 10 * 60 * 1000);
-    return () => clearInterval(id);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A 401 from any request: refresh first, log out only if the session is really gone.
+  async function handleAuthError() {
+    try {
+      const token = await refreshSession();
+      if (token) { setJwt(token); return; }
+    } catch {
+      return; // network/server error: keep the session, the next action retries
+    }
+    handleLogout();
+  }
 
   function handleLogin(tokens) {
     storeTokens(tokens);
@@ -250,12 +251,14 @@ function App() {
           <AdminPanel
             jwt={jwt}
             onLogout={handleLogout}
+            onAuthError={handleAuthError}
             onSwitchToMonitor={() => setAdminView("monitor")}
           />
         ) : (
           <Viewer
             jwt={jwt}
             onLogout={handleLogout}
+            onAuthError={handleAuthError}
             isAdmin
             onSwitchToAdmin={() => setAdminView("admin")}
           />
@@ -264,7 +267,7 @@ function App() {
     );
   }
 
-  return <Viewer jwt={jwt} onLogout={handleLogout} />;
+  return <Viewer jwt={jwt} onLogout={handleLogout} onAuthError={handleAuthError} canTalk={role !== "viewer"} />;
 }
 
 export default App;

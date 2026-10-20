@@ -18,6 +18,7 @@ export function Login({ onLogin }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
+      if (res.status === 429) throw new Error("Demasiados intentos. Espera 15 minutos.");
       if (!res.ok) throw new Error("Usuario o contraseña incorrectos");
       const { access_token, refresh_token } = await res.json();
       onLogin({ access_token, refresh_token });

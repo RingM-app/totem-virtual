@@ -146,6 +146,7 @@ function UsersTab({ jwt, onAuthError }) {
             <label className="text-xs font-medium text-slate-500">Rol</label>
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#505cfc] text-slate-800">
               <option value="guardia">Guardia</option>
+              <option value="viewer">Solo ver</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -230,11 +231,14 @@ function CamerasTab({ jwt, onAuthError }) {
     }
   }
 
+  // Restarted on every token change: the interval used to keep the first render's
+  // fetchCameras, i.e. the first access token, which expires after 15 min — leaving
+  // this tab open logged the admin out.
   useEffect(() => {
     fetchCameras();
     const interval = setInterval(fetchCameras, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [jwt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startEdit(c) {
     setEditingId(c.id);
@@ -494,7 +498,7 @@ const TABS = [
   { id: "assignments", label: "Asignaciones" },
 ];
 
-export function AdminPanel({ jwt, onLogout, onSwitchToMonitor }) {
+export function AdminPanel({ jwt, onLogout, onAuthError, onSwitchToMonitor }) {
   const [activeTab, setActiveTab] = useState("users");
 
   return (
@@ -525,9 +529,9 @@ export function AdminPanel({ jwt, onLogout, onSwitchToMonitor }) {
             </button>
           ))}
         </div>
-        {activeTab === "users"       && <UsersTab       jwt={jwt} onAuthError={onLogout} />}
-        {activeTab === "cameras"     && <CamerasTab     jwt={jwt} onAuthError={onLogout} />}
-        {activeTab === "assignments" && <AssignmentsTab jwt={jwt} onAuthError={onLogout} />}
+        {activeTab === "users"       && <UsersTab       jwt={jwt} onAuthError={onAuthError} />}
+        {activeTab === "cameras"     && <CamerasTab     jwt={jwt} onAuthError={onAuthError} />}
+        {activeTab === "assignments" && <AssignmentsTab jwt={jwt} onAuthError={onAuthError} />}
       </div>
     </div>
   );

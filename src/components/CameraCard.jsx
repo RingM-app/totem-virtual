@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useLiveKit } from "../hooks/useLiveKit";
 
-export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthError }) {
+export function CameraCard({ camera, jwt, autoConnect = true, canTalk = true, onExpand, onAuthError }) {
   const videoRef = useRef(null);
   const { status, hasVideo, hasDevice, error, micOn, camOn, connect, disconnect, toggleMic, toggleCam } = useLiveKit(videoRef, jwt, camera.room_id, onAuthError);
 
@@ -102,6 +102,8 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
         )}
         {roomConnected && (
           <>
+            {/* "viewer" users can't publish: the server denies it, so hide the buttons */}
+            {canTalk && (<>
             {/* Toggle micrófono */}
             <button
               onClick={toggleMic}
@@ -142,6 +144,7 @@ export function CameraCard({ camera, jwt, autoConnect = true, onExpand, onAuthEr
               )}
               {camOn ? "Sin cámara" : "Cámara"}
             </button>
+            </>)}
 
             <button onClick={disconnect} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-500 border border-slate-200 hover:bg-slate-50 transition">
               Desconectar

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { BACKEND_URL, LIVEKIT_URL } from "../config";
 
@@ -12,6 +12,13 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
   const [camOn, setCamOn] = useState(false);
   const roomRef = useRef(null);
   const audioElRef = useRef(null);
+  const connectingRef = useRef(false);   // a connect() is awaiting its token
+  const authRetryRef = useRef(false);    // got a 401: reconnect once the token is refreshed
+
+  // Only the Pi's video belongs on the card. Guards publish too (their camera goes to
+  // the portería screen), so with two guards on the same room the other guard's video
+  // replaced the portería feed.
+  const isDevice = (participant) => (participant?.identity || "").startsWith("pi-");
 
   const getOrCreateAudioEl = useCallback(() => {
     if (!audioElRef.current) {
@@ -36,7 +43,8 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
   }, []);
 
   const connect = useCallback(async () => {
-    if (roomRef.current) return;
+    if (roomRef.current || connectingRef.current) return;
+    connectingRef.current = true;
     setStatus("connecting");
     setError(null);
 
@@ -52,6 +60,7 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
 
       if (tokenRes.status === 401) {
         setStatus("idle");
+        authRetryRef.current = true;
         onAuthError?.();
         return;
       }
@@ -61,8 +70,8 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
       const room = new Room();
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === Track.Kind.Video && videoRef.current) {
+      room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+        if (track.kind === Track.Kind.Video && videoRef.current && isDevice(participant)) {
           track.attach(videoRef.current);
           setHasVideo(true);
         }
@@ -71,9 +80,9 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
         }
       });
 
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
         track.detach();
-        if (track.kind === Track.Kind.Video) setHasVideo(false);
+        if (track.kind === Track.Kind.Video && isDevice(participant)) setHasVideo(false);
       });
 
       room.on(RoomEvent.ParticipantConnected, refreshDevice);
@@ -97,7 +106,7 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
       participants?.forEach((participant) => {
         const pubs = participant.trackPublications ?? participant.tracks;
         pubs?.forEach((pub) => {
-          if (pub.track?.kind === Track.Kind.Video && videoRef.current) {
+          if (pub.track?.kind === Track.Kind.Video && videoRef.current && isDevice(participant)) {
             pub.track.attach(videoRef.current);
             setHasVideo(true);
           }
@@ -110,11 +119,27 @@ export function useLiveKit(videoRef, jwt, roomName, onAuthError) {
       console.error("LiveKit error:", err);
       setError(err.message || "Error de conexión");
       setStatus("error");
+      // A half-connected room would keep its connection and listeners alive. Listeners
+      // go first so its Disconnected event doesn't overwrite the "error" status.
+      roomRef.current?.removeAllListeners();
+      roomRef.current?.disconnect();
       roomRef.current = null;
+    } finally {
+      connectingRef.current = false;
     }
   }, [videoRef, jwt, roomName, getOrCreateAudioEl, onAuthError, refreshDevice]);
 
+  // After a 401 the app refreshes the session and hands down a new jwt: reconnect then,
+  // instead of leaving the card idle until someone clicks "Reconectar".
+  useEffect(() => {
+    if (authRetryRef.current && jwt) {
+      authRetryRef.current = false;
+      connect();
+    }
+  }, [jwt, connect]);
+
   const disconnect = useCallback(() => {
+    authRetryRef.current = false;
     if (roomRef.current) {
       roomRef.current.localParticipant?.setMicrophoneEnabled(false).catch(() => {});
       roomRef.current.localParticipant?.setCameraEnabled(false).catch(() => {});
